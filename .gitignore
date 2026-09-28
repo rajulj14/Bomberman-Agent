@@ -119,3 +119,4 @@ replays/
 screenshots/
 
 training_stats.csv
+agent_code/khaleesi_*_*/
