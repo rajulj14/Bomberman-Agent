@@ -117,3 +117,5 @@ logs/
 .DS_Store
 replays/
 screenshots/
+
+training_stats.csv

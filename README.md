@@ -99,6 +99,8 @@ OMP_NUM_THREADS=1 python tournament.py --agents khaleesi rule_based_agent coin_c
 OMP_NUM_THREADS=1 python evaluate.py --agent khaleesi --opponents rule_based_agent coin_collector_agent peaceful_agent --n-rounds 200 --seed 42 --label test
 ```
 
+Training writes into the agent folder and overwrites the trained models (`model.pkl`, `opponent_model.pkl`, `model.pt`). Back them up first.
+
 Train `khaleesi` from scratch with the curriculum of the final version. Move `model.pkl` out of
 `agent_code/khaleesi/` first, otherwise training continues from the submitted model.
 

@@ -8,7 +8,7 @@ the distribution over states the agent actually encounters, because the
 engine's rule is per step and the overrun is deducted from the next step's
 budget -- so a fat tail is worse than a high mean.
 
-    python timing.py --agent booster --rounds 30
+    python timing.py --agent khaleesi --rounds 30
 
 Reports mean/p50/p95/p99/max, and scales them by a factor for the tournament
 hardware. The tournament runs on an AMD Ryzen 5 2600; a modern laptop core is
@@ -53,7 +53,7 @@ def instrument(agent_name):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--agent", default="booster")
+    p.add_argument("--agent", default="khaleesi")
     p.add_argument("--opponents", nargs="*",
                    default=["rule_based_agent", "coin_collector_agent",
                             "peaceful_agent"])

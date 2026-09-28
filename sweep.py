@@ -8,8 +8,8 @@ once.  This script clones the agent directory once per variant, patches the
 chosen constants in each copy, and prints the commands to run them
 concurrently.
 
-    python sweep.py --param N_STEP --values 3 4 6 8 --base booster
-    python sweep.py --param max_depth --values 4 6 8 --base booster --rounds 2500
+    python sweep.py --param N_STEP --values 3 4 6 8 --base khaleesi
+    python sweep.py --param max_depth --values 4 6 8 --base khaleesi --rounds 2500
 
 Each variant starts from the base agent's current model.pkl, so the sweep
 measures "what does changing this parameter do from here", not "what does
@@ -162,7 +162,7 @@ def collect(base, param, values, field, rounds, seed):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--base", default="booster")
+    p.add_argument("--base", default="khaleesi")
     p.add_argument("--param", required=True)
     p.add_argument("--values", nargs="+", required=True)
     p.add_argument("--rounds", type=int, default=2500,
