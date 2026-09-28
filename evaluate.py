@@ -325,8 +325,8 @@ def cmd_compare(args):
     seeds_a = {r["seed"] for r in a}
     seeds_b = {r["seed"] for r in b}
     paired = seeds_a == seeds_b
-    print(f"\npaired seeds: {'yes' if paired else 'NO -- differences below are '
-          'confounded by map difficulty'}")
+    msg = 'yes' if paired else 'NO -- differences below are confounded by map difficulty'
+    print(f"\npaired seeds: {msg}")
 
     print(f"\npaired difference ({a_label} - {b_label})")
     print("-" * 62)
