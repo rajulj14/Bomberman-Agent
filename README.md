@@ -1,151 +1,143 @@
-# LoRA Fine-tuning
+# Reinforcement Learning for Bomberman
 
-Fine-tunes Llama 3.2 3B Instruct on Dataset B and evaluates it on Datasets A
-and C, against an untuned baseline of the same model.
+Final project for Machine Learning Essentials, Summer Semester 2026, Heidelberg University.
+Team Khaleesi.
 
-## Contents
+The code builds on the course framework [ukoethe/bomberman_rl](https://github.com/ukoethe/bomberman_rl).
+The framework files are unchanged. This repository adds our agents, their trained models and the scripts
+we used for training and evaluation.
 
-| File | Purpose |
-|---|---|
-| `lora_training.py` | Trains the adapter and generates Dataset A predictions |
-| `score_predictions.py` | Scores Dataset A predictions against the gold spans |
-| `evaluate_dataset_c.py` | Runs Dataset C, with a second pass for the model's reasoning |
-| `results_dataset_a.csv` | Dataset A summary, one row per condition |
-| `results_table_c.csv` | Dataset C summary, one row per condition |
+## Agents
 
-The per-item output files and the trained adapters are not committed. The
-detail files contain the evaluation sentences, and we keep Datasets A and C
-out of the repository so that models scraping GitHub do not end up trained on
-our test set. The commands below regenerate all of it.
+All agents except the tabular one score each of the six actions with a function of features that describe
+what happens if this action is taken, and play the action with the highest value.
+
+| Agent | Method | Features | Role |
+|---|---|---|---|
+| `khaleesi` | gradient-boosted regression trees, fitted Q-iteration with 6-step returns | 47 | tournament submission |
+| `hybrid_q_agent` | linear Q-learning with 4-step returns, weights initialised by ridge regression on `rule_based_agent` games | 24 | second agent |
+| `reactive` | linear Q-learning with 4-step returns | 40 | first agent, basis of the `khaleesi` features |
+| `tabular_q_agent` | tabular Q-learning over discretised states | | first test, dropped early |
+
+`khaleesi` also uses a small classifier that predicts the next action of an opponent
+(`agent_code/khaleesi/opponent_model.py`). It was trained on games of `rule_based_agent`.
+
+## Results
+
+Standard field: `rule_based_agent`, `coin_collector_agent` and `peaceful_agent`. Scores are points per
+round with 95 % bootstrap confidence intervals.
+
+`khaleesi` on five seeds, 500 rounds each. Seed 42 was used during development, the other four were not.
+
+| Seed | `khaleesi` | 95 % CI | `rule_based_agent` |
+|---|---|---|---|
+| 42 | 8.39 | [7.97, 8.80] | 5.10 |
+| 7 | 7.94 | [7.54, 8.35] | 5.31 |
+| 1 | 8.19 | [7.78, 8.60] | 5.17 |
+| 2 | 8.29 | [7.89, 8.71] | 5.14 |
+| 3 | 8.17 | [7.75, 8.58] | 5.19 |
+| Mean | 8.19 | [7.99, 8.40] | 5.18 |
+
+`hybrid_q_agent` in the standard field, 500 rounds, seed 42: 6.80 [6.38, 7.24], against 5.43 for
+`rule_based_agent`.
+
+Both agents in the same games, with `rule_based_agent` and `coin_collector_agent`, 500 rounds, seed 42:
+`khaleesi` 6.61 [6.23, 6.99], `hybrid_q_agent` 3.31 [3.04, 3.58].
+
+Decision time on one thread (Apple M4 Max): `khaleesi` 6.0 ms in the median and at most 18.1 ms,
+`hybrid_q_agent` 0.78 ms on average. The tournament limit is 0.5 s.
+
+## Repository structure
+
+```
+agent_code/
+  khaleesi/            submitted agent
+    callbacks.py       builds the feature matrix and plays the best action
+    features.py        the 47 action-conditional features
+    tactics.py         danger map, escape search, threat map, kill test
+    opponent_model.py  classifier for opponent actions
+    train.py           fitted Q-iteration with a replay buffer
+    model.pkl, opponent_model.pkl
+  hybrid_q_agent/      linear agent
+    callbacks.py, features.py, train.py
+    pretrain.py        ridge regression on rule_based_agent games
+    model.pt
+  reactive/            first linear agent, model.npz
+  tabular_q_agent/     tabular Q-learning test
+evaluate.py            one agent against three opponents, fixed seed, paired bootstrap comparison
+tournament.py          four agents in the same games, ranked with confidence intervals
+sweep.py               trains one copy of an agent per hyperparameter value in parallel
+timing.py              decision time per step
+time_agents.py         decision time of one agent over a few rounds
+autopsy.py             sorts every death of an agent into unseen, avoidable or doomed
+scoreboard.py          100-round benchmark used during the development of hybrid_q_agent
+train_opponent_model.py  collects games of rule_based_agent and trains the opponent model
+```
 
 ## Setup
 
-```bash
-pip install "transformers>=4.45" peft datasets accelerate torch
-hf auth login
-```
-
-Llama 3.2 is gated. Accept the licence at
-`huggingface.co/meta-llama/Llama-3.2-3B-Instruct` before logging in. Approval
-covers the whole Llama 3.2 collection.
-
-## Data
-
-Dataset B is in `../data/` and is committed. The evaluation sets are not, so
-generate them first:
+Python 3.10 or newer.
 
 ```bash
-python ../src/dataset_a_gen.py
-python ../src/dataset_c_gen.py
+pip install numpy pygame tqdm scikit-learn==1.9.0
 ```
 
-`dataset_a_gen.py` writes to the current directory, so move its output to
-where the scripts look for it:
+The trained models are pickled with scikit-learn 1.9.0 and need this version to load.
+
+## Usage
+
+Watch a game:
 
 ```bash
-mv sentences.csv spans.csv ~/evaldatasets/dataset_a/
+python main.py play --agents khaleesi hybrid_q_agent rule_based_agent peaceful_agent
 ```
 
-Expected layout:
-
-```
-llm-redactor/
-  data/                 dataset_b_train.jsonl, dataset_b_dev.jsonl
-  finetuning/           these scripts
-~/evaldatasets/
-  dataset_a/            sentences.csv, spans.csv
-  dataset_c/            dataset_c.csv, dataset_c_eval.jsonl
-```
-
-The generators are deterministic, so a regenerated Dataset A matches the one
-these results came from (`md5 e6259a24dd877ff48d312ac10b2c25b5`).
-
-## Running
-
-Start with the smoke test. It runs 8 rows, 1 epoch and 5 eval sentences, and
-prints the first training pair so you can check the input and output are the
-right way round before committing to a full run.
+Evaluate in the standard field. We set `OMP_NUM_THREADS=1` so that scikit-learn uses one thread, as in the tournament.
 
 ```bash
-python lora_training.py --smoke
+OMP_NUM_THREADS=1 python tournament.py --agents khaleesi rule_based_agent coin_collector_agent peaceful_agent --rounds 500 --seed 42
+OMP_NUM_THREADS=1 python evaluate.py --agent khaleesi --opponents rule_based_agent coin_collector_agent peaceful_agent --n-rounds 200 --seed 42 --label test
 ```
 
-Dataset A, four conditions:
+Train `khaleesi` from scratch with the curriculum of the final version. Move `model.pkl` out of
+`agent_code/khaleesi/` first, otherwise training continues from the submitted model.
 
 ```bash
-python lora_training.py                  # fine-tuned, seed 42
-python lora_training.py --base-only      # untuned baseline, no training
-python lora_training.py --seed 1
-python lora_training.py --seed 2
+OMP_NUM_THREADS=1 python main.py play --no-gui --agents khaleesi --train 1 --scenario coin-heaven --n-rounds 2000
+OMP_NUM_THREADS=1 python main.py play --no-gui --agents khaleesi --train 1 --scenario loot-crate --n-rounds 3000
+OMP_NUM_THREADS=1 python main.py play --no-gui --agents khaleesi --train 1 --scenario classic --n-rounds 4000
+OMP_NUM_THREADS=1 python main.py play --no-gui --agents khaleesi peaceful_agent coin_collector_agent rule_based_agent --train 1 --scenario classic --n-rounds 6000
 ```
 
-Each condition writes to its own directory (`lora_outputs`,
-`baseline_outputs`, `lora_outputs_seed1`, `lora_outputs_seed2`). Training
-takes about four minutes on an M4 Max and generating 150 sentences takes about
-three.
-
-Scoring:
+Train the opponent model:
 
 ```bash
-python score_predictions.py --dump-errors errors.csv
-python score_predictions.py --preds baseline_outputs/dataset_a_predictions.json --label "base model"
+python train_opponent_model.py --rounds 200
 ```
 
-Dataset C, four conditions:
+Train `hybrid_q_agent`: pretraining, then five stages.
 
 ```bash
-python evaluate_dataset_c.py                              # fine-tuned
-python evaluate_dataset_c.py --base-only                  # baseline
-python evaluate_dataset_c.py --legitimacy-prompt          # exemptions named explicitly
-python evaluate_dataset_c.py --base-only --legitimacy-prompt
+python agent_code/hybrid_q_agent/pretrain.py
+python main.py play --no-gui --agents hybrid_q_agent --train 1 --scenario coin-heaven --n-rounds 200
+python main.py play --no-gui --agents hybrid_q_agent --train 1 --scenario loot-crate --n-rounds 300
+python main.py play --no-gui --agents hybrid_q_agent --train 1 --scenario classic --n-rounds 200
+python main.py play --no-gui --agents hybrid_q_agent peaceful_agent coin_collector_agent --train 1 --scenario classic --n-rounds 200
+python main.py play --no-gui --agents hybrid_q_agent rule_based_agent coin_collector_agent peaceful_agent --train 1 --scenario classic --n-rounds 300
 ```
 
-`evaluate_dataset_c.py` makes two calls per sentence, one to redact and one to
-ask the model to justify keeping or redacting. Both end up in
-`dataset_c_review.csv` next to the dataset's own rationale.
-
-## Checking the scorer
-
-Feeding the dataset's gold redactions back through the scorer should return
-100% on every cell. Worth running before trusting any model number.
+Hyperparameter sweep, for example over the return horizon:
 
 ```bash
-python -c "
-import csv, json
-rows = list(csv.DictReader(open('$HOME/evaldatasets/dataset_a/sentences.csv')))
-json.dump([{'id': r['id'], 'input': r['text'], 'prediction': r['redacted_text']} for r in rows],
-          open('gold_as_preds.json', 'w'), ensure_ascii=False)
-"
-python score_predictions.py --preds gold_as_preds.json --label "gold ceiling"
+python sweep.py --base khaleesi --param N_STEP --values 3 4 6 8 --rounds 2500
+python sweep.py --base khaleesi --collect --param N_STEP --values 3 4 6 8
 ```
 
-## Configuration
+Analysis:
 
-Llama 3.2 3B Instruct, LoRA rank 8, alpha 16, dropout 0.05, applied to
-`q_proj` and `v_proj` only. Learning rate 1e-4 with a cosine schedule, three
-epochs, effective batch size 8 (1 x 8 gradient accumulation), 10 warmup steps.
-That gives 2.29M trainable parameters, 0.07% of the model. Decoding is greedy
-everywhere.
-
-Training runs in bfloat16 on MPS. Weights load on CPU and move to the device
-afterwards, because loading straight onto MPS segfaults with recent
-safetensors builds. Those two steps need to stay separate. Loss is computed
-only on the assistant's output, with the prompt masked to `-100`.
-
-If bfloat16 gives NaN losses, use `--precision fp32`.
-
-## Output files
-
-Per condition:
-
+```bash
+OMP_NUM_THREADS=1 python timing.py --agent khaleesi --rounds 30
+OMP_NUM_THREADS=1 python time_agents.py khaleesi 5
+OMP_NUM_THREADS=1 python autopsy.py --agent khaleesi --rounds 200
+python scoreboard.py 100
 ```
-lora_outputs/
-  final_model/                  LoRA adapter weights
-  dataset_a_predictions.json    model outputs
-  scores_detail.json            per-item scores
-  dev_metrics.json              final dev loss
-```
-
-`errors.csv` lists the failing items with input, gold and prediction side by
-side. `dataset_c_review.csv` does the same for Dataset C, with the model's
-reasoning next to the dataset's rationale.
