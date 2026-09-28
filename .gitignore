@@ -110,7 +110,8 @@ screenshots/*.mp4
 screenshots/*.webm
 
 replays/
-results/*pycache*
+results/
+*pycache*
 *.pyc
 logs/
 .DS_Store
