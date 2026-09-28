@@ -4,17 +4,8 @@ import subprocess
 import time
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
-# Fallback to bomberman_rl directory if run from Desktop
-if not os.path.exists(os.path.join(ROOT_DIR, "main.py")):
-    alt_dir = os.path.expanduser("~/Bomberman-Agent")
-    if os.path.exists(alt_dir):
-        ROOT_DIR = alt_dir
-    else:
-        alt_mle = os.path.expanduser("~/Desktop/MLE/bomberman_rl")
-        if os.path.exists(alt_mle):
-            ROOT_DIR = alt_mle
 
-PYTHON_BIN = os.path.join(ROOT_DIR, ".venv/bin/python3") if os.path.exists(os.path.join(ROOT_DIR, ".venv")) else sys.executable
+PYTHON_BIN = sys.executable
 
 
 def run_stage(title, cmd):

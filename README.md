@@ -72,6 +72,7 @@ time_agents.py         decision time of one agent over a few rounds
 autopsy.py             sorts every death of an agent into unseen, avoidable or doomed
 scoreboard.py          100-round benchmark used during the development of hybrid_q_agent
 train_opponent_model.py  collects games of rule_based_agent and trains the opponent model
+train_curriculum_tabular.py  runs the five training stages of tabular_q_agent
 ```
 
 ## Setup
