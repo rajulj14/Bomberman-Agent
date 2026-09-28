@@ -1,2 +1,3 @@
-# Bomberman-Agent
-Two reinforcement learning agents for Bomberman: gradient-boosted fitted Q-iteration and linear Q-learning.
+# bomberman_rl
+Setup for a project/competition amongst students to train a winning Reinforcement Learning agent for the classic game Bomberman.
+
